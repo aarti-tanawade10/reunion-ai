@@ -10,7 +10,6 @@ For each candidate city, the application adds up the distance every friend would
 
 ## link: https://reunion-ai-1.onrender.com/
 
-## Works without an API key too
 
 Img. 1
 
