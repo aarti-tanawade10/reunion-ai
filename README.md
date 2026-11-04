@@ -8,7 +8,9 @@ ReunionAI is a web application that helps a geographically scattered group of fr
 
 For each candidate city, the application adds up the distance every friend would travel and adds half of the longest single trip. This keeps the total travel low while preventing one person from having to cross the country. The city with the lowest score is recommended.
 
-# link: https://reunion-ai-1.onrender.com/
+## link: https://reunion-ai-1.onrender.com/
+
+## Works without an API key too
 
 Img. 1
 
