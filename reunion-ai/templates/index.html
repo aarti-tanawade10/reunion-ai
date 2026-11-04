@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReunionAI</title>
+<style>
+  :root { --bg:#faf7f2; --ink:#1f2933; --muted:#6b7280; --card:#fff; --line:#e5dfd3; --accent:#c2410c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181d; --ink:#eceff4; --muted:#9aa3b2; --card:#1f232b; --line:#2f3541; --accent:#fb923c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { margin:0 0 4px; font-size:28px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; gap:8px; margin-bottom:8px; }
+  input { flex:1; min-width:0; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+  button { padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button:disabled { opacity:.6; cursor:wait; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
+  .opt { padding:12px 0; border-top:1px solid var(--line); }
+  .opt:first-child { border-top:0; }
+  .opt b { font-size:18px; }
+  .tag { font-size:12px; background:var(--accent); color:#fff; border-radius:99px; padding:2px 8px; margin-left:6px; }
+  .meta { color:var(--muted); font-size:14px; }
+  pre { white-space:pre-wrap; word-wrap:break-word; font:inherit; margin:0; }
+  #err { color:#dc2626; margin:8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ReunionAI</h1>
+  <p class="sub">Add your friends and where they live. Get the fairest meeting city, an invitation, and an itinerary.</p>
+
+  <div class="card">
+    <div id="friends"></div>
+    <button type="button" id="add">+ Add friend</button>
+    <label>Dates</label><input id="dates" placeholder="e.g. Nov 12-15">
+    <label>Vibe</label><input id="vibe" placeholder="e.g. cozy, food, a bit of hiking">
+    <label>Budget per person</label><input id="budget" placeholder="e.g. $400 excluding flights">
+    <p style="margin:16px 0 0"><button class="primary" id="go">Plan our reunion</button></p>
+    <p id="err"></p>
+  </div>
+
+  <div class="card" id="rank" hidden></div>
+  <div class="card" id="plan" hidden></div>
+</main>
+
+<datalist id="cities">{% for c in cities %}<option value="{{ c }}">{% endfor %}</datalist>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function addRow(name = "", city = "") {
+  const row = document.createElement("div");
+  row.className = "row";
+  const n = Object.assign(document.createElement("input"), { placeholder: "Name", value: name });
+  const c = Object.assign(document.createElement("input"), { placeholder: "City", value: city });
+  c.setAttribute("list", "cities");
+  const x = Object.assign(document.createElement("button"), { type: "button", textContent: "✕" });
+  x.onclick = () => row.remove();
+  row.append(n, c, x);
+  $("friends").append(row);
+}
+addRow(); addRow(); addRow();
+$("add").onclick = () => addRow();
+
+$("go").onclick = async () => {
+  $("err").textContent = "";
+  const friends = [...$("friends").children].map(r => {
+    const [n, c] = r.querySelectorAll("input");
+    return { name: n.value, city: c.value };
+  });
+  $("go").disabled = true; $("go").textContent = "Planning…";
+  try {
+    const res = await fetch("/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ friends, dates: $("dates").value, vibe: $("vibe").value, budget: $("budget").value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Something went wrong");
+    show(data);
+  } catch (e) {
+    $("err").textContent = e.message;
+  } finally {
+    $("go").disabled = false; $("go").textContent = "Plan our reunion";
+  }
+};
+
+function show(data) {
+  const rank = $("rank");
+  rank.hidden = false;
+  rank.replaceChildren();
+  const h = document.createElement("h3"); h.textContent = "Best cities to meet"; h.style.marginTop = 0;
+  rank.append(h);
+  data.ranked.forEach((r, i) => {
+    const d = document.createElement("div"); d.className = "opt";
+    const b = document.createElement("b"); b.textContent = r.city;
+    d.append(b);
+    if (i === 0) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "Best"; d.append(t); }
+    const m = document.createElement("div"); m.className = "meta";
+    m.textContent = `Average ${r.average_miles} mi per person · longest trip ${r.longest_trip} mi`;
+    d.append(m);
+    rank.append(d);
+  });
+  const plan = $("plan");
+  plan.hidden = false;
+  plan.replaceChildren();
+  const ph = document.createElement("h3"); ph.textContent = data.ai ? "Invitation and itinerary" : "Starter plan"; ph.style.marginTop = 0;
+  const pre = document.createElement("pre"); pre.textContent = data.plan;
+  const copy = document.createElement("button"); copy.textContent = "Copy"; copy.style.marginTop = "12px";
+  copy.onclick = () => navigator.clipboard.writeText(data.plan).then(() => copy.textContent = "Copied");
+  plan.append(ph, pre, copy);
+  plan.scrollIntoView({ behavior: "smooth" });
+}
+</script>
+</body>
+</html>
